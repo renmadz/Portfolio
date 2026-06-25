@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ren. | Darren Björn Maddara</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Background layers -->
+  <div class="bg-grid"      aria-hidden="true"></div>
+  <div class="bg-scanlines" aria-hidden="true"></div>
+  <canvas id="particle-canvas" aria-hidden="true"></canvas>
+
+  <!-- ============================================================
+       NAV  [ren.] left | [MENU] centre | [SYS ONLINE] right
+       ============================================================ -->
+  <nav>
+    <a href="#" class="nav-logo">
+      <span class="hud-bracket">[</span>ren<span class="dot">.</span><span class="hud-bracket">]</span>
+    </a>
+
+    <button class="menu-btn" id="menu-btn" onclick="toggleMenu()"
+            aria-expanded="false" aria-label="Open navigation menu">
+      <span class="menu-bar top"></span>
+      <span class="menu-bar mid"></span>
+      <span class="menu-bar bot"></span>
+    </button>
+
+    <div class="nav-hud" aria-hidden="true">
+      <span class="hud-label">SYS</span>
+      <span class="hud-status">ONLINE</span>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       FULLSCREEN MENU OVERLAY
+       Opens with clip-path circle expanding from centre.
+       Contains four views that slide left/right between each other.
+       ============================================================ -->
+  <div class="menu-overlay" id="menu-overlay" aria-hidden="true">
+
+    <!-- Decorative pulse ring on open -->
+    <div class="menu-shockwave" id="menu-shockwave" aria-hidden="true"></div>
+
+    <!-- Faint warp-tunnel spoke lines -->
+    <div class="menu-warp-grid" aria-hidden="true">
+      <div class="spoke"></div><div class="spoke"></div>
+      <div class="spoke"></div><div class="spoke"></div>
+      <div class="spoke"></div><div class="spoke"></div>
+      <div class="spoke"></div><div class="spoke"></div>
+    </div>
+
+    <!-- HUD corner brackets -->
+    <div class="hud-corner tl" aria-hidden="true"></div>
+    <div class="hud-corner tr" aria-hidden="true"></div>
+    <div class="hud-corner bl" aria-hidden="true"></div>
+    <div class="hud-corner br" aria-hidden="true"></div>
+
+    <!-- ============================================================
+         VIEW CONTAINER — clips the sliding views
+         Only one .menu-view is .view-active at a time.
+         #view-nav starts active (set via class in HTML + JS on open).
+         ============================================================ -->
+    <div class="view-container">
+
+      <!-- ── VIEW: MAIN MENU NAV ── -->
+      <!--
+        view-active is set HERE in HTML so the nav view is visible
+        by default the moment the overlay opens. JS also enforces
+        this on every openMenu() call, but having it in HTML prevents
+        the flash where all views are invisible for one frame.
+      -->
+      <div class="menu-view view-active" id="view-nav">
+
+        <div class="menu-nav-inner">
+          <p class="menu-label mono" aria-hidden="true">// NAVIGATION</p>
+
+          <ul class="menu-list">
+            <!--
+              style="--i:0/1/2" sets the stagger delay.
+              CSS: transition-delay: calc(var(--i) * 80ms)
+            -->
+            <li class="menu-item" style="--i:0">
+              <button onclick="showView('about')" class="menu-link">
+                <span class="menu-num mono">01 /</span>
+                <span class="menu-text">About</span>
+                <span class="menu-arrow">→</span>
+              </button>
+            </li>
+            <li class="menu-item" style="--i:1">
+              <button onclick="showView('skills')" class="menu-link">
+                <span class="menu-num mono">02 /</span>
+                <span class="menu-text">Tools &amp; Languages</span>
+                <span class="menu-arrow">→</span>
+              </button>
+            </li>
+            <li class="menu-item" style="--i:2">
+              <button onclick="showView('contact')" class="menu-link">
+                <span class="menu-num mono">03 /</span>
+                <span class="menu-text">Contact</span>
+                <span class="menu-arrow">→</span>
+              </button>
+            </li>
+          </ul>
+
+          <p class="menu-footer-text mono" aria-hidden="true">
+            OPERATOR: DARREN BJÖRN MADDARA &nbsp;·&nbsp; STATUS: ACTIVE
+          </p>
+        </div>
+
+      </div><!-- /#view-nav -->
+
+
+      <!-- ── VIEW: ABOUT ── -->
+      <div class="menu-view" id="view-about">
+        <div class="view-inner">
+
+          <button class="view-back" onclick="showView('nav', true)">
+            ← <span class="mono">MENU</span>
+          </button>
+
+          <span class="view-label mono">// 01 / About</span>
+          <h2 class="view-title">Who I Am</h2>
+          <div class="view-rule"></div>
+
+          <!-- EDIT: update your bio here -->
+          <p class="view-text">
+            I'm a motivated Computer Science student with a strong interest in
+            software engineering and game development. I continuously improve my
+            programming skills through hands-on projects and practical learning.
+          </p>
+          <p class="view-text">
+            I strive to contribute meaningfully to a team while building a solid
+            foundation in creating reliable and efficient software systems. Based
+            in City of Ilagan, Isabela, Philippines.
+          </p>
+
+          <div class="view-chips">
+            <div class="chip"><span>📍</span> City of Ilagan, Isabela, PH</div>
+            <div class="chip"><span>🎓</span> BS Computer Science</div>
+            <div class="chip"><span>🎮</span> Game Dev Enthusiast</div>
+          </div>
+
+        </div>
+      </div><!-- /#view-about -->
+
+
+      <!-- ── VIEW: TOOLS & LANGUAGES ── -->
+      <div class="menu-view" id="view-skills">
+        <div class="view-inner">
+
+          <button class="view-back" onclick="showView('nav', true)">
+            ← <span class="mono">MENU</span>
+          </button>
+
+          <span class="view-label mono">// 02 / Tools &amp; Languages</span>
+          <h2 class="view-title">Tech Stack</h2>
+          <div class="view-rule"></div>
+
+          <!--
+            To ADD a skill: copy a .skill-card block, update the img src,
+            .skill-name, and .skill-cat. Browse icons: https://devicon.dev/
+          -->
+          <div class="skills-grid">
+
+            <div class="skill-card">
+              <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" alt="Python" class="skill-icon" />
+              <span class="skill-name">Python</span>
+              <span class="skill-cat">Language</span>
+            </div>
+
+            <div class="skill-card">
+              <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/csharp/csharp-original.svg" alt="C#" class="skill-icon" />
+              <span class="skill-name">C#</span>
+              <span class="skill-cat">Language</span>
+            </div>
+
+            <div class="skill-card">
+              <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/git/git-original.svg" alt="Git" class="skill-icon" />
+              <span class="skill-name">Git</span>
+              <span class="skill-cat">Version Control</span>
+            </div>
+
+            <div class="skill-card">
+              <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg" alt="GitHub" class="skill-icon" />
+              <span class="skill-name">GitHub</span>
+              <span class="skill-cat">Platform</span>
+            </div>
+
+            <div class="skill-card">
+              <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/vscode/vscode-original.svg" alt="VS Code" class="skill-icon" />
+              <span class="skill-name">VS Code</span>
+              <span class="skill-cat">Editor</span>
+            </div>
+
+            <div class="skill-card">
+              <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/visualstudio/visualstudio-plain.svg" alt="Visual Studio" class="skill-icon" />
+              <span class="skill-name">Visual Studio</span>
+              <span class="skill-cat">IDE</span>
+            </div>
+
+            <div class="skill-card">
+              <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/photoshop/photoshop-plain.svg" alt="Photoshop" class="skill-icon" />
+              <span class="skill-name">Photoshop</span>
+              <span class="skill-cat">Design</span>
+            </div>
+
+            <!--
+              TEMPLATE — copy to add a skill:
+              <div class="skill-card">
+                <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/TOOL/TOOL-original.svg" alt="Tool" class="skill-icon" />
+                <span class="skill-name">Tool Name</span>
+                <span class="skill-cat">Category</span>
+              </div>
+            -->
+
+          </div><!-- /.skills-grid -->
+        </div>
+      </div><!-- /#view-skills -->
+
+
+      <!-- ── VIEW: CONTACT ── -->
+      <div class="menu-view" id="view-contact">
+        <div class="view-inner">
+
+          <button class="view-back" onclick="showView('nav', true)">
+            ← <span class="mono">MENU</span>
+          </button>
+
+          <span class="view-label mono">// 03 / Contact</span>
+          <h2 class="view-title">Get In Touch</h2>
+          <div class="view-rule"></div>
+
+          <p class="view-text">Open to collaboration, learning opportunities, and internships.</p>
+
+          <!-- EDIT: replace href values with your real links -->
+          <div class="contact-links">
+            <a href="https://github.com/renmadz" target="_blank" rel="noopener" class="contact-link">
+              GitHub <span class="arrow">↗</span>
+            </a>
+            <!-- Replace "youremail@example.com" with your actual email -->
+            <a href="mailto:youremail@example.com" class="contact-link">
+              Email <span class="arrow">↗</span>
+            </a>
+            <!-- Replace "yourprofile" with your LinkedIn username -->
+            <a href="https://linkedin.com/in/yourprofile" target="_blank" rel="noopener" class="contact-link">
+              LinkedIn <span class="arrow">↗</span>
+            </a>
+          </div>
+
+        </div>
+      </div><!-- /#view-contact -->
+
+    </div><!-- /.view-container -->
+  </div><!-- /.menu-overlay -->
+
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <div class="layout">
+    <div class="hud-corner tl" aria-hidden="true"></div>
+    <div class="hud-corner tr" aria-hidden="true"></div>
+    <div class="hud-corner bl" aria-hidden="true"></div>
+    <div class="hud-corner br" aria-hidden="true"></div>
+
+    <div class="hero">
+      <p class="hero-prefix" aria-hidden="true"><span class="mono">// OPERATOR PROFILE</span></p>
+      <h1 class="hero-name" data-text="Darren Björn Maddara">Darren Björn Maddara</h1>
+      <div class="hero-rule"></div>
+      <p class="hero-descriptors">
+        CS Student <span class="sep">·</span>
+        Game Dev Enthusiast <span class="sep">·</span>
+        Python Developer
+      </p>
+    </div>
+
+    <p class="projects-label"><span class="mono">// </span>Projects</p>
+
+    <div class="projects-carousel" id="projects-carousel">
+      <div class="projects-track" id="projects-track">
+        <p class="projects-status" id="projects-status">
+          <span class="mono">Loading repositories…</span>
+        </p>
+      </div>
+    </div>
+
+    <p class="carousel-hint mono" aria-hidden="true">← scroll or drag →</p>
+  </div>
+
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer>
+    <div class="player" id="player">
+      <audio id="audio" loop>
+        <!-- EDIT: change filename to match your downloaded mp3 -->
+        <source src="dreams-kevin-macleod.mp3" type="audio/mpeg" />
+      </audio>
+      <button class="player-btn" id="play-btn" onclick="togglePlay()" aria-label="Play/Pause">
+        <svg id="icon-play"  viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+      <div class="player-info">
+        <!-- EDIT: update track title and artist when you change the song -->
+        <span class="player-title">Dreams</span>
+        <button class="player-artist" onclick="toggleCredits()">Kevin MacLeod ↗</button>
+      </div>
+      <input class="player-volume" type="range" min="0" max="1" step="0.01" value="0.5" oninput="setVolume(this.value)" aria-label="Volume" />
+    </div>
+    <div class="footer-right">
+      <span class="mono">© <span id="year"></span> Darren Björn Maddara</span>
+      <a href="https://github.com/renmadz" target="_blank" rel="noopener">github.com/renmadz</a>
+    </div>
+  </footer>
+
+
+  <!-- ============================================================
+       CREDITS POPUP
+       ============================================================ -->
+  <div class="credits-popup" id="credits-popup" aria-hidden="true">
+    <div class="credits-inner">
+      <button class="credits-close" onclick="toggleCredits()" aria-label="Close">×</button>
+      <p class="credits-heading mono">// MUSIC CREDITS</p>
+      <!-- EDIT: update these rows when you change the track -->
+      <div class="credits-row"><span class="credits-label">Track</span><span class="credits-value">Dreams</span></div>
+      <div class="credits-row"><span class="credits-label">Artist</span><span class="credits-value">Kevin MacLeod</span></div>
+      <div class="credits-row">
+        <span class="credits-label">Source</span>
+        <a class="credits-value credits-link" href="https://pixabay.com/music/" target="_blank" rel="noopener">Pixabay Music ↗</a>
+      </div>
+      <div class="credits-row"><span class="credits-label">Licence</span><span class="credits-value">Pixabay Content Licence</span></div>
+      <p class="credits-note">Attribution not required by Pixabay licence, credited here by choice.</p>
+    </div>
+  </div>
+
+  <script src="script.js" defer></script>
+</body>
+</html>

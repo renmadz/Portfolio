@@ -1,0 +1,698 @@
+/* ============================================================
+   style.css — Darren's Portfolio (v7)
+   ============================================================
+   FIXES IN THIS VERSION:
+   1. Clip-path circle animation restored for menu open/close
+   2. Menu centred horizontally AND vertically
+   3. Content views centred, clear of the navbar
+   4. View slide transitions are race-condition-free
+   5. overlay uses visibility:hidden when closed so it can
+      never block carousel drag/scroll events
+   ============================================================ */
+
+
+/* ============================================================
+   VARIABLES
+   ============================================================ */
+:root {
+  --bg:           #0f0f13;
+  --surface:      #1a1a24;
+  --surface-alt:  #0b0b10;
+  --border:       #2a2a3a;
+  --accent:       #4a7fd4;
+  --accent-dim:   #2a5aaa;
+  --accent-deep:  #1e3a6e;
+  --accent-glow:  #4a7fd420;
+  --text:         #e8e8f0;
+  --text-muted:   #8888aa;
+  --heading:      #ffffff;
+  --scanline:     rgba(0,0,0,0.18);
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body:    'Inter', sans-serif;
+  --font-mono:    'Share Tech Mono', monospace;
+
+  /* Nav height — used for padding so content never hides under it */
+  --nav-h: 72px;
+}
+
+
+/* ============================================================
+   RESET
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.7;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Monospace utility */
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+
+/* ============================================================
+   BACKGROUND LAYERS
+   ============================================================ */
+.bg-grid {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: radial-gradient(circle, #4a7fd412 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.bg-scanlines {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.4;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px, transparent 3px,
+    var(--scanline) 3px, var(--scanline) 4px
+  );
+}
+#particle-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+
+/* ============================================================
+   NAV  — CSS grid: 1fr | auto | 1fr
+   The three columns give us a true geometric centre for the button.
+   ============================================================ */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  height: var(--nav-h);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 48px;
+  background: rgba(15,15,19,0.92);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 0 var(--accent-glow);
+}
+
+/* [ren.] — left column */
+.nav-logo {
+  font-family: var(--font-display); font-size: 1rem; font-weight: 700;
+  letter-spacing: 3px; color: var(--heading); text-decoration: none;
+  display: flex; align-items: center; gap: 2px; justify-self: start;
+}
+.nav-logo .dot { color: var(--accent); }
+.hud-bracket   { color: var(--accent-dim); font-weight: 400; font-size: 1.1em; }
+
+/* SYS ONLINE — right column */
+.nav-hud {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 0.65rem; justify-self: end;
+}
+.hud-label  { color: var(--text-muted); letter-spacing: 2px; }
+.hud-status { color: #4adb8a; letter-spacing: 2px; }
+.hud-status::before { content: '● '; animation: blink 1.8s step-end infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+
+/* ============================================================
+   HAMBURGER BUTTON — centre column
+   ============================================================ */
+.menu-btn {
+  justify-self: center;
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 16px; cursor: pointer; min-width: 80px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.menu-btn:hover { border-color: var(--accent); background: var(--accent-glow); }
+
+.menu-bar {
+  display: block; width: 20px; height: 1.5px; background: var(--text-muted);
+  border-radius: 1px; transform-origin: center;
+  transition: transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s, background 0.2s;
+}
+.menu-btn:hover .menu-bar { background: var(--heading); }
+
+/* Morph to × when .open */
+.menu-btn.open .top { transform: translateY(6.5px) rotate(45deg); }
+.menu-btn.open .mid { opacity: 0; transform: scaleX(0); }
+.menu-btn.open .bot { transform: translateY(-6.5px) rotate(-45deg); }
+.menu-btn.open .menu-bar { background: var(--accent); }
+
+/* "MENU" label below bars */
+.menu-btn::after {
+  content: 'MENU'; font-family: var(--font-mono); font-size: 0.5rem;
+  letter-spacing: 2.5px; color: var(--text-muted); margin-top: 4px;
+  transition: color 0.2s;
+}
+.menu-btn:hover::after,
+.menu-btn.open::after { color: var(--accent); }
+
+
+/* ============================================================
+   FULLSCREEN MENU OVERLAY
+
+   OPEN ANIMATION — clip-path circle expanding from centre.
+   Closed: circle(0% at 50% 50%)   → nothing visible
+   Open:   circle(150% at 50% 50%) → whole screen covered
+
+   visibility:hidden when closed ensures the invisible overlay
+   never intercepts mouse/wheel events on the main page.
+   The transition delay on visibility (0s open, 0.65s close)
+   means it goes hidden only AFTER the fade-out animation ends.
+   ============================================================ */
+.menu-overlay {
+  position: fixed; inset: 0; z-index: 150;
+  background: radial-gradient(ellipse at center, #0d1520 0%, #080810 55%, #050508 100%);
+
+  /* Closed state */
+  clip-path: circle(0% at 50% 50%);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    clip-path 0.65s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0s linear 0.65s;
+}
+
+.menu-overlay.open {
+  clip-path: circle(150% at 50% 50%);
+  visibility: visible;
+  pointer-events: all;
+  transition:
+    clip-path 0.65s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0s linear 0s;
+}
+
+
+/* ============================================================
+   SHOCKWAVE RING
+   ============================================================ */
+.menu-shockwave {
+  position: absolute; top: 50%; left: 50%;
+  width: 40px; height: 40px; margin: -20px 0 0 -20px;
+  border-radius: 50%; border: 2px solid var(--accent);
+  opacity: 0; transform: scale(0); pointer-events: none;
+}
+.menu-shockwave.pulse {
+  animation: shockwave 0.8s cubic-bezier(0.2,0,0.8,1) forwards;
+}
+@keyframes shockwave {
+  0%   { transform: scale(0);  opacity: 0.9; }
+  60%  {                        opacity: 0.4; }
+  100% { transform: scale(45); opacity: 0;   }
+}
+
+
+/* ============================================================
+   WARP GRID SPOKES
+   ============================================================ */
+.menu-warp-grid { position: absolute; inset: 0; pointer-events: none; opacity: 0.06; }
+.spoke {
+  position: absolute; top: 50%; left: 50%;
+  width: 150vmax; height: 1px;
+  background: linear-gradient(to right, transparent, var(--accent), transparent);
+  transform-origin: left center; margin-top: -0.5px;
+}
+.spoke:nth-child(1){transform:rotate(0deg)}
+.spoke:nth-child(2){transform:rotate(22.5deg)}
+.spoke:nth-child(3){transform:rotate(45deg)}
+.spoke:nth-child(4){transform:rotate(67.5deg)}
+.spoke:nth-child(5){transform:rotate(90deg)}
+.spoke:nth-child(6){transform:rotate(112.5deg)}
+.spoke:nth-child(7){transform:rotate(135deg)}
+.spoke:nth-child(8){transform:rotate(157.5deg)}
+
+
+/* ============================================================
+   HUD CORNERS
+   ============================================================ */
+.hud-corner { position: absolute; width: 24px; height: 24px; opacity: 0.5; pointer-events: none; }
+/* In .layout — corners stay clear of footer */
+.layout .hud-corner.tl { top: calc(var(--nav-h) + 12px); left: 24px;  border-top:1.5px solid var(--accent); border-left:1.5px solid var(--accent); }
+.layout .hud-corner.tr { top: calc(var(--nav-h) + 12px); right: 24px; border-top:1.5px solid var(--accent); border-right:1.5px solid var(--accent); }
+.layout .hud-corner.bl { bottom: 56px; left: 24px;  border-bottom:1.5px solid var(--accent); border-left:1.5px solid var(--accent); }
+.layout .hud-corner.br { bottom: 56px; right: 24px; border-bottom:1.5px solid var(--accent); border-right:1.5px solid var(--accent); }
+/* In .menu-overlay — hug window edges */
+.menu-overlay .hud-corner.tl { top: 16px;    left: 16px;  border-top:1.5px solid var(--accent); border-left:1.5px solid var(--accent); }
+.menu-overlay .hud-corner.tr { top: 16px;    right: 16px; border-top:1.5px solid var(--accent); border-right:1.5px solid var(--accent); }
+.menu-overlay .hud-corner.bl { bottom: 16px; left: 16px;  border-bottom:1.5px solid var(--accent); border-left:1.5px solid var(--accent); }
+.menu-overlay .hud-corner.br { bottom: 16px; right: 16px; border-bottom:1.5px solid var(--accent); border-right:1.5px solid var(--accent); }
+
+
+/* ============================================================
+   VIEW CONTAINER
+   Clips the sliding views. Sits inside the overlay, sized to
+   the full overlay minus the nav height at the top so content
+   never slides under the nav bar.
+   ============================================================ */
+.view-container {
+  /* Start below the nav bar */
+  position: absolute;
+  top: var(--nav-h);
+  left: 0; right: 0; bottom: 0;
+  overflow: hidden;
+}
+
+
+/* ============================================================
+   MENU VIEWS
+   All four views sit absolutely inside .view-container.
+   Only .view-active is visible; others are opacity:0 and
+   offset by translateX so they're ready to slide in/out.
+
+   INACTIVE (default):
+     opacity: 0
+     transform: translateX(60px)   ← waiting off to the right
+     pointer-events: none
+     visibility: hidden             ← fully removed from click/tab flow
+
+   ACTIVE:
+     opacity: 1
+     transform: translateX(0)
+     pointer-events: all
+     visibility: visible
+
+   The transition is on the base rule so it applies in both
+   directions (entering and exiting).
+   ============================================================ */
+.menu-view {
+  position: absolute;
+  inset: 0;
+
+  /* Centre children both ways */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  /* Allow scrolling if content is taller than the view */
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  /* Inactive / enter-from-right default */
+  opacity: 0;
+  transform: translateX(60px);
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0s linear 0.3s;
+}
+
+/* Active view */
+.menu-view.view-active {
+  opacity: 1;
+  transform: translateX(0);
+  visibility: visible;
+  pointer-events: all;
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0s linear 0s;
+}
+
+/* Exit to left (going forward into content) */
+.menu-view.exit-left {
+  opacity: 0;
+  transform: translateX(-60px);
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0s linear 0.25s;
+}
+
+/* Exit to right (going back to nav) */
+.menu-view.exit-right {
+  opacity: 0;
+  transform: translateX(60px);
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0s linear 0.25s;
+}
+
+/* Enter from left (nav entering when going back from content) */
+.menu-view.enter-left {
+  transform: translateX(-60px);
+  /* opacity and visibility stay at their base values (0, hidden)
+     until .view-active is added in the same JS tick */
+}
+
+
+/* ============================================================
+   INNER WRAPPERS
+   These centre and constrain the content width within a view.
+   ============================================================ */
+
+/* Nav view inner — left-aligned Persona list */
+.menu-nav-inner {
+  width: 100%;
+  max-width: 700px;
+  padding: 0 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Content views inner (About, Skills, Contact) */
+.view-inner {
+  width: 100%;
+  max-width: 680px;
+  padding: 16px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+
+/* ============================================================
+   BACK BUTTON
+   ============================================================ */
+.view-back {
+  background: none; border: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.75rem; font-family: var(--font-mono);
+  color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase;
+  padding: 0 0 8px 0; align-self: flex-start;
+  transition: color 0.2s;
+}
+.view-back:hover { color: var(--accent); }
+
+
+/* ============================================================
+   MENU ITEMS (Persona-style numbered list)
+   ============================================================ */
+.menu-label {
+  font-size: 0.65rem; color: var(--accent-dim); letter-spacing: 3px;
+  margin-bottom: 16px;
+}
+
+.menu-list { list-style: none; width: 100%; }
+
+/* Staggered entrance when overlay opens */
+.menu-item {
+  opacity: 0;
+  transform: translateX(-40px);
+  transition:
+    opacity  0.4s ease calc(var(--i,0) * 80ms),
+    transform 0.4s ease calc(var(--i,0) * 80ms);
+}
+.menu-overlay.open .menu-item {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Each button row */
+.menu-link {
+  background: none; border: none; cursor: pointer;
+  display: flex; align-items: baseline; gap: 20px;
+  padding: 14px 0; width: 100%;
+  border-bottom: 1px solid var(--border);
+  position: relative; overflow: hidden;
+  transition: padding-left 0.25s;
+}
+
+/* Blue scan-swipe on hover */
+.menu-link::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--accent); opacity: 0.1;
+  transform: translateX(-101%);
+  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  z-index: 0;
+}
+.menu-link:hover::before  { transform: translateX(0); }
+.menu-link:hover          { padding-left: 12px; }
+
+.menu-num {
+  font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent);
+  letter-spacing: 2px; flex-shrink: 0; position: relative; z-index: 1;
+  transition: color 0.2s;
+}
+.menu-text {
+  font-family: var(--font-display); font-size: clamp(2rem,5vw,3.6rem);
+  font-weight: 700; color: var(--heading); line-height: 1.1;
+  letter-spacing: -1px; flex: 1; position: relative; z-index: 1;
+  transition: color 0.2s;
+}
+.menu-arrow {
+  font-size: 1.1rem; color: var(--accent-dim); margin-left: auto;
+  position: relative; z-index: 1;
+  transition: color 0.2s, transform 0.2s;
+}
+.menu-link:hover .menu-text  { color: var(--accent); }
+.menu-link:hover .menu-num   { color: var(--heading); }
+.menu-link:hover .menu-arrow { color: var(--accent); transform: translateX(4px); }
+
+/* Footer status text */
+.menu-footer-text {
+  margin-top: 28px; font-size: 0.6rem; letter-spacing: 2px; color: var(--accent-dim);
+  opacity: 0;
+  transition: opacity 0.4s ease 0.45s;
+}
+.menu-overlay.open .menu-footer-text { opacity: 1; }
+
+
+/* ============================================================
+   CONTENT VIEW TYPOGRAPHY & COMPONENTS
+   ============================================================ */
+.view-label {
+  font-size: 0.65rem; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--accent); font-weight: 600;
+}
+.view-title {
+  font-family: var(--font-display); font-size: clamp(1.8rem,4vw,2.8rem);
+  font-weight: 700; color: var(--heading); letter-spacing: -0.5px; line-height: 1.1;
+}
+.view-rule { width: 36px; height: 2px; background: var(--accent); border-radius: 1px; }
+.view-text { font-size: 0.92rem; line-height: 1.85; color: var(--text); font-weight: 300; }
+
+/* Info chips */
+.view-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 50px; font-size: 0.8rem; color: var(--text-muted);
+}
+
+/* Skills grid */
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 12px;
+}
+.skill-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 12px 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  text-align: center;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.skill-card:hover {
+  border-color: var(--accent); transform: translateY(-3px);
+  box-shadow: 0 6px 20px var(--accent-glow);
+}
+.skill-icon { width: 40px; height: 40px; object-fit: contain; }
+/* GitHub icon is black — invert it to white for dark backgrounds */
+.skill-icon[alt="GitHub"] { filter: invert(1); }
+.skill-name {
+  font-family: var(--font-display); font-size: 0.78rem;
+  font-weight: 600; color: var(--heading); line-height: 1.2;
+}
+.skill-cat {
+  font-family: var(--font-mono); font-size: 0.6rem;
+  letter-spacing: 1.5px; color: var(--accent); text-transform: uppercase;
+}
+
+/* Contact links */
+.contact-links { display: flex; flex-direction: column; gap: 10px; }
+.contact-link {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 15px 20px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; text-decoration: none; color: var(--text);
+  font-size: 0.88rem; font-weight: 500;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.contact-link:hover { border-color: var(--accent); color: var(--heading); background: var(--accent-glow); }
+.contact-link .arrow { color: var(--accent); }
+
+
+/* ============================================================
+   MAIN LAYOUT + HERO
+   ============================================================ */
+.layout {
+  position: relative; flex: 1; z-index: 1;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  padding: calc(var(--nav-h) + 20px) 48px 64px;
+  overflow: hidden;
+}
+.hero { text-align: center; margin-bottom: 44px; }
+.hero-prefix {
+  font-family: var(--font-mono); font-size: 0.7rem;
+  color: var(--accent-dim); letter-spacing: 2px; margin-bottom: 12px;
+}
+.hero-name {
+  font-family: var(--font-display); font-size: clamp(2.8rem,7vw,5.5rem);
+  font-weight: 700; color: var(--heading); letter-spacing: -1px;
+  line-height: 1; white-space: nowrap; position: relative;
+}
+.hero-name::before, .hero-name::after {
+  content: attr(data-text); position: absolute; inset: 0;
+  font-family: inherit; font-size: inherit; font-weight: inherit;
+  letter-spacing: inherit; white-space: nowrap;
+}
+.hero-name::before {
+  color: #4af3ff; animation: glitch-top 8s infinite;
+  clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+}
+.hero-name::after {
+  color: #ff4a6a; animation: glitch-bot 8s infinite;
+  clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+}
+@keyframes glitch-top {
+  0%,90%,100% { transform:translateX(0); opacity:0 }
+  91% { transform:translateX(-3px); opacity:.8 }
+  93% { transform:translateX(3px);  opacity:.8 }
+  95% { transform:translateX(-2px); opacity:.8 }
+  97% { transform:translateX(0);    opacity:0  }
+}
+@keyframes glitch-bot {
+  0%,90%,100% { transform:translateX(0); opacity:0 }
+  92% { transform:translateX(3px);  opacity:.8 }
+  94% { transform:translateX(-3px); opacity:.8 }
+  96% { transform:translateX(2px);  opacity:.8 }
+  98% { transform:translateX(0);    opacity:0  }
+}
+.hero-rule {
+  width: 100%; height: 1px; margin: 18px 0 16px;
+  background: linear-gradient(to right, transparent, var(--accent-dim), var(--accent), var(--accent-dim), transparent);
+}
+.hero-descriptors { font-size:.72rem; font-weight:400; letter-spacing:3px; text-transform:uppercase; color:var(--text-muted); }
+.hero-descriptors .sep { color:var(--accent); margin:0 12px; }
+
+
+/* ============================================================
+   PROJECTS CAROUSEL
+   ============================================================ */
+.projects-label {
+  font-size:.7rem; font-weight:600; letter-spacing:3px;
+  text-transform:uppercase; color:var(--text-muted); text-align:center; margin-bottom:14px;
+}
+.projects-carousel {
+  width:100%; max-width:960px; overflow-x:auto; overflow-y:hidden;
+  cursor:grab; padding-bottom:10px;
+  scrollbar-width:thin; scrollbar-color:var(--accent-dim) transparent;
+}
+.projects-carousel.grabbing { cursor:grabbing; user-select:none; }
+.projects-carousel::-webkit-scrollbar       { height:3px; }
+.projects-carousel::-webkit-scrollbar-track { background:transparent; }
+.projects-carousel::-webkit-scrollbar-thumb { background:var(--accent-dim); border-radius:2px; }
+.projects-track { display:flex; gap:14px; width:max-content; padding:4px 2px; }
+.project-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:14px;
+  padding:22px 20px; width:232px; flex-shrink:0;
+  display:flex; flex-direction:column; gap:9px; text-decoration:none;
+  transition:border-color .2s, transform .2s, box-shadow .2s;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+.project-card:hover {
+  border-color:var(--accent); transform:translateY(-4px);
+  box-shadow:0 8px 24px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.card-title { font-family:var(--font-display); font-size:.92rem; font-weight:600; color:var(--heading); line-height:1.35; }
+.card-desc  { font-size:.8rem; color:var(--text-muted); line-height:1.6; flex:1; }
+.card-lang  {
+  display:inline-block; font-size:.7rem; font-weight:500; padding:3px 10px;
+  background:var(--accent-glow); color:var(--accent); border-radius:50px;
+  width:fit-content; margin-top:auto; font-family:var(--font-mono); letter-spacing:1px;
+}
+.projects-status { font-size:.78rem; color:var(--text-muted); padding:24px 0; }
+.carousel-hint   { margin-top:10px; font-size:.6rem; letter-spacing:2px; opacity:.35; }
+
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+footer {
+  position:fixed; bottom:0; left:0; right:0; z-index:200;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:12px 48px; border-top:1px solid var(--border);
+  background:rgba(15,15,19,.95); backdrop-filter:blur(12px);
+}
+.footer-right {
+  display:flex; align-items:center; gap:24px;
+  font-size:.65rem; letter-spacing:1.5px; color:var(--text-muted);
+}
+.footer-right a { color:var(--text-muted); text-decoration:none; transition:color .2s; }
+.footer-right a:hover { color:var(--heading); }
+
+
+/* ============================================================
+   MUSIC PLAYER
+   ============================================================ */
+.player { display:flex; align-items:center; gap:12px; }
+.player-btn {
+  width:30px; height:30px; border-radius:50%; flex-shrink:0;
+  border:1px solid var(--accent-dim); background:var(--accent-glow); color:var(--accent);
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:background .2s, border-color .2s;
+}
+.player-btn:hover { background:var(--accent-deep); border-color:var(--accent); }
+.player-info { display:flex; flex-direction:column; gap:1px; line-height:1.2; }
+.player-title  { font-family:var(--font-display); font-size:.75rem; font-weight:600; color:var(--text); }
+.player-artist {
+  font-family:var(--font-mono); font-size:.62rem; color:var(--accent);
+  background:none; border:none; cursor:pointer; padding:0; letter-spacing:.5px; transition:color .2s;
+}
+.player-artist:hover { color:var(--heading); }
+.player-volume {
+  -webkit-appearance:none; appearance:none;
+  width:68px; height:3px; background:var(--border); border-radius:2px; outline:none; cursor:pointer;
+}
+.player-volume::-webkit-slider-thumb { -webkit-appearance:none; width:10px; height:10px; border-radius:50%; background:var(--accent); cursor:pointer; }
+.player-volume::-moz-range-thumb     { width:10px; height:10px; border-radius:50%; background:var(--accent); border:none; cursor:pointer; }
+
+
+/* ============================================================
+   CREDITS POPUP
+   ============================================================ */
+.credits-popup {
+  position:fixed; bottom:56px; left:48px; z-index:300; width:280px;
+  background:var(--surface-alt); border:1px solid var(--border); border-radius:12px;
+  padding:20px 24px; opacity:0; transform:translateY(8px); pointer-events:none;
+  transition:opacity .25s, transform .25s; box-shadow:0 8px 32px rgba(0,0,0,.6);
+}
+.credits-popup.visible { opacity:1; transform:translateY(0); pointer-events:all; }
+.credits-inner  { position:relative; display:flex; flex-direction:column; gap:10px; }
+.credits-close  {
+  position:absolute; top:-4px; right:-4px; background:none;
+  border:1px solid var(--border); color:var(--text-muted);
+  width:22px; height:22px; border-radius:50%; cursor:pointer; font-size:.75rem;
+  display:flex; align-items:center; justify-content:center; transition:border-color .2s, color .2s;
+}
+.credits-close:hover  { border-color:var(--accent); color:var(--heading); }
+.credits-heading      { font-size:.65rem; letter-spacing:2px; color:var(--accent); text-transform:uppercase; }
+.credits-row          { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px; gap:12px; }
+.credits-row:last-of-type { border-bottom:none; }
+.credits-label { color:var(--text-muted); font-family:var(--font-mono); font-size:.65rem; letter-spacing:1px; flex-shrink:0; }
+.credits-value { color:var(--text); font-size:.78rem; }
+.credits-link  { color:var(--accent); text-decoration:none; }
+.credits-link:hover { color:var(--heading); }
+.credits-note  { font-size:.68rem; color:var(--text-muted); line-height:1.6; font-style:italic; }
+
+
+/* ============================================================
+   RESPONSIVE — phones
+   ============================================================ */
+@media (max-width: 640px) {
+  nav { padding: 0 20px; }
+  .nav-hud { display: none; }
+  .menu-btn { min-width: 60px; padding: 8px 12px; }
+  .hero-name { white-space: normal; font-size: clamp(2rem,9vw,3.5rem); }
+  .layout { padding: calc(var(--nav-h) + 12px) 20px 64px; }
+  .projects-carousel { max-width: 100%; }
+  footer { padding: 10px 20px; flex-wrap: wrap; gap: 8px; }
+  .player-volume { width: 48px; }
+  .footer-right { font-size: .6rem; gap: 12px; }
+  .credits-popup { left: 16px; right: 16px; width: auto; }
+  .menu-nav-inner, .view-inner { padding: 0 20px; }
+  .menu-text { font-size: clamp(1.6rem,8vw,2.8rem); }
+  .skills-grid { grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); }
+}
